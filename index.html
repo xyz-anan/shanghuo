@@ -57,13 +57,17 @@ header{display:flex;align-items:center;justify-content:space-between;margin:4px 
  </div>
  <div class="card">
   <div class="cardhead"><strong>分类独立要货单</strong><span class="hint" id="saveState">自动保存中</span></div>
-  <div class="hint" style="line-height:1.7;margin:-4px 0 10px">每个分类单独保存，切换分类不会清除其他要货单。</div>
+  <div class="hint" style="line-height:1.7;margin:-4px 0 10px">每个分类单独保存，切换分类不会清除其他要货单。面包和吐司餐包可单独填写，也可合并复制给同一位师傅。</div>
   <div class="catbar" id="categoryTabs"></div>
   <input class="search" id="orderSearch" placeholder="搜索商品名称…">
   <div class="hint" style="margin-bottom:5px">当前只显示所选分类的商品；其他分类的要货单会独立保存。</div>
   <div class="ordersection">
    <div class="sectionlabel"><strong>我的要货单</strong><span id="chosenCount">0 种商品</span></div>
    <div id="chosenProducts"></div>
+   <div class="rowbtns" style="margin-top:8px">
+    <button class="btn primary" id="copyOrder">复制当前分类</button>
+    <button class="btn light" id="copyCombinedOrder">合并复制：面包＋吐司餐包</button>
+   </div>
   </div>
   <div class="ordersection">
    <div class="sectionlabel"><strong>库存单</strong><span id="inventoryCount">0 种可选商品</span></div>
@@ -73,7 +77,6 @@ header{display:flex;align-items:center;justify-content:space-between;margin:4px 
    <div class="summarytop"><b>当前要货单</b><span id="summaryCount">0 种商品</span></div>
    <div class="hint" id="summaryText" style="margin-top:7px">还没有选择商品</div>
    <div class="rowbtns">
-    <button class="btn primary" id="copyOrder">复制要货单</button>
     <button class="btn neutral" id="clearOrder">清空本分类</button>
    </div>
   </div>
@@ -306,12 +309,27 @@ $('orderDate').onchange=()=>{
 $('tomorrowBtn').onclick=()=>openDate(shift(dateStr(new Date()),1));
 $('newOrderBtn').onclick=()=>{const date=$('orderDate').value||shift(dateStr(new Date()),1);createOrder(date,activeCategory);renderOrder();renderHistory();toast('已新建本分类独立要货单')};
 $('clearOrder').onclick=()=>{const order=currentOrder();if(!order||!confirm('确定清空当前【'+(order.category||activeCategory)+'】要货单吗？其他分类和历史订单不会受影响。'))return;order.items={};saveOrders();renderOrder();renderHistory();toast('当前分类要货单已清空')};
+async function copyTextToClipboard(text,successMessage){
+ try{await navigator.clipboard.writeText(text);toast(successMessage)}
+ catch(e){let t=document.createElement('textarea');t.value=text;t.style.position='fixed';t.style.opacity='0';document.body.appendChild(t);t.select();const ok=document.execCommand('copy');t.remove();toast(ok?successMessage:'复制失败，请检查浏览器剪贴板权限')}
+}
 $('copyOrder').onclick=async()=>{
- const order=currentOrder();if(!order)return;let lines=['要货日期：'+dayLabel(order.date),'','【'+order.category+'】'];
- Object.values(order.items).forEach(v=>lines.push(`${v.name} ${v.qty}${v.unit||''}`));
- if(!Object.keys(order.items).length){toast('先选择需要的商品');return}
- try{await navigator.clipboard.writeText(lines.join('\n'));toast('要货单已复制，可以发给后厨了')}
- catch(e){let t=document.createElement('textarea');t.value=lines.join('\n');document.body.appendChild(t);t.select();document.execCommand('copy');t.remove();toast('要货单已复制')}
+ const order=currentOrder();if(!order)return;
+ const items=Object.values(order.items||{});if(!items.length){toast('先选择需要的商品');return}
+ const lines=['要货日期：'+dayLabel(order.date),'','【'+order.category+'】',...items.map(v=>`${v.name} ${v.qty}${v.unit||''}`)];
+ await copyTextToClipboard(lines.join('\n'),'当前分类要货单已复制，可以发给后厨了');
+};
+$('copyCombinedOrder').onclick=async()=>{
+ const date=$('orderDate').value||activeDate;const wanted=['面包','吐司餐包'];
+ const selected=wanted.map(category=>{
+  const active=currentOrder();
+  const order=active&&active.date===date&&active.category===category?active:[...orders].reverse().find(o=>o.date===date&&o.category===category);
+  return {category,items:order?Object.values(order.items||{}):[]};
+ }).filter(group=>group.items.length);
+ if(!selected.length){toast('面包和吐司餐包都还没有选择商品');return}
+ const lines=['要货日期：'+dayLabel(date),''];
+ selected.forEach((group,index)=>{if(index)lines.push('');lines.push('【'+group.category+'】');group.items.forEach(v=>lines.push(`${v.name} ${v.qty}${v.unit||''}`));});
+ await copyTextToClipboard(lines.join('\n'),'面包和吐司餐包已合并复制，原来的两份订单仍分别保留');
 };
 
 
