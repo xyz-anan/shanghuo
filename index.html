@@ -264,9 +264,22 @@ function renderCatalog(){
 }
 function renderHistory(){
  const sorted=[...orders].sort((a,b)=>b.date.localeCompare(a.date)||b.id.localeCompare(a.id));
- $('historyList').innerHTML=sorted.length?sorted.map((o,i)=>{const count=Object.keys(o.items||{}).length;return `<div class="historyrow"><div><b style="font-size:14px">${dayLabel(o.date)}</b><div class="hint" style="margin-top:4px">【${esc(o.category||'未分类')}】 · ${count} 种商品 · ${Object.values(o.items||{}).slice(0,3).map(v=>esc(v.name)).join('、')}${count>3?'…':''}</div></div><div class="itemactions"><button class="btn outline" data-open-order="${o.id}">打开编辑</button><button class="mini" data-copy-order="${o.id}">复制成新单</button></div></div>`}).join(''):'<div class="empty">还没有历史订单。<br>建立订单并选择商品后，这里会自动保存。</div>';
+ $('historyList').innerHTML=sorted.length?sorted.map((o,i)=>{const count=Object.keys(o.items||{}).length;return `<div class="historyrow"><div><b style="font-size:14px">${dayLabel(o.date)}</b><div class="hint" style="margin-top:4px">【${esc(o.category||'未分类')}】 · ${count} 种商品 · ${Object.values(o.items||{}).slice(0,3).map(v=>esc(v.name)).join('、')}${count>3?'…':''}</div></div><div class="itemactions"><button class="btn outline" data-open-order="${o.id}">打开编辑</button><button class="mini" data-copy-order="${o.id}">复制成新单</button><button class="mini danger" data-delete-order="${o.id}">删除订单</button></div></div>`}).join(''):'<div class="empty">还没有历史订单。<br>建立订单并选择商品后，这里会自动保存。</div>';
  $('historyList').querySelectorAll('[data-open-order]').forEach(b=>b.onclick=()=>{setActiveOrder(b.dataset.openOrder);changePage('order')});
  $('historyList').querySelectorAll('[data-copy-order]').forEach(b=>b.onclick=()=>{const original=orders.find(o=>o.id===b.dataset.copyOrder);if(!original)return;const copy=createOrder(original.date,original.category||'面包',original.items);setActiveOrder(copy.id);changePage('order');toast('已复制为一份新的独立订单')});
+ $('historyList').querySelectorAll('[data-delete-order]').forEach(b=>b.onclick=()=>{
+  const target=orders.find(o=>o.id===b.dataset.deleteOrder);if(!target)return;
+  const category=target.category||'未分类';
+  if(!confirm(`确定删除这份订单吗？\n\n日期：${dayLabel(target.date)}\n分类：【${category}】\n商品：${Object.keys(target.items||{}).length} 种\n\n只删除这一份订单，其他分类和同日订单不会受影响。`))return;
+  orders=orders.filter(o=>o.id!==target.id);saveOrders();
+  if(activeOrderId===target.id){
+   const same=orders.filter(o=>o.date===target.date&&o.category===target.category).slice(-1)[0];
+   const fallback=same||[...orders].sort((a,b)=>b.date.localeCompare(a.date)||b.id.localeCompare(a.id))[0];
+   if(fallback)setActiveOrder(fallback.id);
+   else{const fresh=createOrder(shift(dateStr(new Date()),1),target.category||'面包',{});setActiveOrder(fresh.id)}
+  }
+  renderHistory();toast('这份订单已删除');
+ });
 }
 function openModal(p=null){
  $('productForm').reset();$('productId').value=p?.id||'';$('modalTitle').textContent=p?'编辑商品':'新增商品';
